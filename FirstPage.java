@@ -1,142 +1,150 @@
-import javax.swing.*;
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
+
+/**
+ * The landing screen.
+ *
+ * Two things were wrong. All three labels were drawn in {@code Color.BLACK} on a
+ * {@code (54,59,71)} dark slate panel — around 1.4:1 contrast, i.e. invisible. And the hero
+ * image was scaled exactly once, in {@code createImagePanel}, using {@code getWidth() / 2}
+ * and {@code getHeight()} read off the frame before it had been laid out, then never
+ * rescaled; resizing the window left a fixed-size bitmap in a stretched panel.
+ *
+ * Now the image scales continuously with its panel and the type is light-on-dark.
+ */
 public class FirstPage extends JFrame {
 
-    public FirstPage() {
-        setTitle("Game Startup Page");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1000, 600);
-        setLocationRelativeTo(null);
-        setLayout(new GridLayout(1, 2)); // Use GridLayout for a seamless split
+  /** Below this width the hero image is dropped and the copy takes the full window. */
+  private static final int HERO_BREAKPOINT = 820;
 
-        // Load image
-        String imagePath = "background.png";
+  public FirstPage() {
+    super("Project Memetent");
+    setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        // Create left panel with image
-        JPanel leftPanel = createImagePanel(imagePath);
-        add(leftPanel);
+    RatioSplit split = new RatioSplit(0.52, true, 0)
+        .collapseBelow(HERO_BREAKPOINT)
+        .secondaryBounds(340, 640);
 
-        // Create right panel with button and labels
-        JPanel rightPanel = createButtonPanel();
-        add(rightPanel);
+    JPanel root = new JPanel(split);
+    root.setBackground(Theme.BG_DEEP);
+    root.add(createHeroPanel(), RatioSplit.PRIMARY);
+    root.add(createCopyPanel(), RatioSplit.SECONDARY);
 
-        setVisible(true);
-    }
+    setContentPane(root);
+    setMinimumSize(new Dimension(460, 420));
+    setSize(1060, 620);
+    setLocationRelativeTo(null);
+  }
 
-    private JPanel createImagePanel(String imagePath) {
-        JPanel panel = new JPanel(new BorderLayout());
+  /**
+   * GIFPanel is reused here for a still PNG — it is really "an image scaled to its panel",
+   * and it already does the cover-fit and quality hints this needs.
+   */
+  private JPanel createHeroPanel() {
+    final GIFPanel hero = new GIFPanel("background.png").withMode(GIFPanel.Mode.COVER);
 
-        // Load and scale the image to fit the panel
-        ImageIcon imageIcon = new ImageIcon(imagePath);
-        JLabel imageLabel = new JLabel();
-        imageLabel.setIcon(new ImageIcon(imageIcon.getImage().getScaledInstance(getWidth() / 2, getHeight(), Image.SCALE_SMOOTH)));
-        imageLabel.setHorizontalAlignment(JLabel.CENTER);
-        imageLabel.setVerticalAlignment(JLabel.CENTER);
+    // A scrim over the photo so it reads as a backdrop rather than competing with the copy.
+    JPanel wrapper = new JPanel(new java.awt.BorderLayout()) {
+      private static final long serialVersionUID = 1L;
 
-        panel.add(imageLabel, BorderLayout.CENTER);
-        return panel;
-    }
+      @Override
+      protected void paintChildren(Graphics g) {
+        super.paintChildren(g);
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setPaint(new java.awt.GradientPaint(0, 0, new Color(0, 0, 0, 40),
+                                               getWidth(), getHeight(), new Color(0, 0, 0, 150)));
+        g2.fillRect(0, 0, getWidth(), getHeight());
+        g2.dispose();
+      }
+    };
+    wrapper.setBackground(Theme.BG_DEEP);
+    wrapper.add(hero, java.awt.BorderLayout.CENTER);
+    return wrapper;
+  }
 
-    private JPanel createButtonPanel() {
-        JPanel panel = new JPanel();
-        panel.setBackground(new Color(54, 59, 71));
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS)); // Use BoxLayout for vertical alignment
+  private JPanel createCopyPanel() {
+    JPanel panel = new JPanel() {
+      private static final long serialVersionUID = 1L;
 
-        // Add labels for text
-        JLabel label1 = new JLabel("Project Memetent");
-        label1.setFont(new Font("Arial", Font.BOLD, 30));
-        label1.setAlignmentX(Component.CENTER_ALIGNMENT);
-        label1.setForeground(Color.BLACK); // Set text color to black
+      @Override
+      protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        Graphics2D g2 = (Graphics2D) g.create();
+        Theme.enableQuality(g2);
+        g2.setPaint(new java.awt.GradientPaint(0, 0, Theme.BG_PANEL, 0, getHeight(), Theme.BG_DEEP));
+        g2.fillRect(0, 0, getWidth(), getHeight());
+        g2.dispose();
+      }
+    };
+    panel.setOpaque(true);
+    panel.setBackground(Theme.BG_PANEL);
+    panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+    panel.setBorder(javax.swing.BorderFactory.createEmptyBorder(40, 44, 40, 44));
 
-        JLabel label2 = new JLabel("A compilation game.");
-        label2.setFont(new Font("Arial", Font.PLAIN, 20));
-        label2.setAlignmentX(Component.CENTER_ALIGNMENT);
-        label2.setForeground(Color.BLACK); // Set text color to black
+    JLabel eyebrow = label("A COMPILATION GAME", Theme.font(Font.BOLD, 13f), Theme.ACCENT);
+    JLabel title = label("Project Memetent", Theme.font(Font.BOLD, 40f), Theme.TEXT);
+    JLabel subtitle = label("Your favourite retro games, with memes.",
+                            Theme.font(Font.PLAIN, 18f), Theme.TEXT_MUTED);
 
-        JLabel label3 = new JLabel("Your favourite retro games with memes");
-        label3.setFont(new Font("Arial", Font.PLAIN, 20));
-        label3.setAlignmentX(Component.CENTER_ALIGNMENT);
-        label3.setForeground(Color.BLACK); // Set text color to black
+    AccentButton play = new AccentButton("Play Game");
+    play.setAlignmentX(Component.CENTER_ALIGNMENT);
+    play.addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(ActionEvent e) {
+        // The original popped a "Opening game..." JOptionPane here, an extra click between
+        // the audience and the game for no information.
+        openPicker();
+      }
+    });
 
-        // Custom Button
-        JButton button = new RoundedButton("Play Game");
-        button.setAlignmentX(Component.CENTER_ALIGNMENT);
-        button.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                // Open the respective game
-                JOptionPane.showMessageDialog(null, "Opening game...");
-                new GameStartupPage();
-            }
-        });
+    panel.add(Box.createVerticalGlue());
+    panel.add(eyebrow);
+    panel.add(Box.createRigidArea(new Dimension(0, 14)));
+    panel.add(title);
+    panel.add(Box.createRigidArea(new Dimension(0, 12)));
+    panel.add(subtitle);
+    panel.add(Box.createRigidArea(new Dimension(0, 36)));
+    panel.add(play);
+    panel.add(Box.createVerticalGlue());
 
-        // Add components to the panel with spacing
-        panel.add(Box.createVerticalGlue());
-        panel.add(label1);
-        panel.add(Box.createRigidArea(new Dimension(0, 20))); // Space between elements
-        panel.add(label2);
-        panel.add(Box.createRigidArea(new Dimension(0, 20)));
-        panel.add(label3);
-        panel.add(Box.createRigidArea(new Dimension(0, 40)));
-        panel.add(button);
-        panel.add(Box.createVerticalGlue());
+    return panel;
+  }
 
-        return panel;
-    }
+  private JLabel label(String text, Font font, Color colour) {
+    JLabel l = new JLabel(text);
+    l.setFont(font);
+    l.setForeground(colour);
+    l.setAlignmentX(Component.CENTER_ALIGNMENT);
+    return l;
+  }
 
-    // Custom button class with rounded corners and bluish-silver color
-    class RoundedButton extends JButton {
-        private static final long serialVersionUID = 1L;
+  private void openPicker() {
+    setVisible(false);
+    new GameStartupPage().onClose(new Runnable() {
+      public void run() { setVisible(true); }
+    }).show();
+  }
 
-        public RoundedButton(String text) {
-            super(text);
-            setOpaque(false);
-            setFocusPainted(false);
-            setBorderPainted(false);
-            setContentAreaFilled(false);
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-            // Set the color and fill the rounded rectangle
-            g2.setColor(new Color(55, 75, 117)); // Light bluish-silver color
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 30, 30);
-
-            // Set the font color and draw the text
-            g2.setColor(Color.BLACK);
-            FontMetrics fm = g2.getFontMetrics();
-            int x = (getWidth() - fm.stringWidth(getText())) / 2;
-            int y = (getHeight() + fm.getAscent()) / 2 - fm.getDescent();
-            g2.drawString(getText(), x, y);
-
-            g2.dispose();
-        }
-
-        @Override
-        protected void paintBorder(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-            // Draw the border with the same color and roundness
-            g2.setColor(new Color(173, 216, 230));
-            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 30, 30);
-
-            g2.dispose();
-        }
-    }
-
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                new FirstPage();
-            }
-        });
-    }
+  public static void main(String[] args) {
+    SwingUtilities.invokeLater(new Runnable() {
+      @Override
+      public void run() {
+        AppTheme.install();
+        new FirstPage().setVisible(true);
+      }
+    });
+  }
 }

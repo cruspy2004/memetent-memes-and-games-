@@ -1,106 +1,165 @@
-import javax.swing.*;
-import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridLayout;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 
-public class GameStartupPage extends JFrame {
+import javax.swing.BorderFactory;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 
-    // Relative to the working directory, so the game runs from wherever it is checked out.
-    private static final String BRICK_BREAKER_IMAGE = "Brickbreacker_picture.png";
-    private static final String DINO_IMAGE = "Dinogame_pic.png";
+/**
+ * The game picker.
+ *
+ * The original dropped two native-size images into a fixed 1000x700 {@code GridLayout(1,2)}
+ * with no scaling, so the artwork was simply cropped by its cell, and hover swapped in a
+ * distorted 900x900 rescale that overflowed. It also showed a JOptionPane
+ * ("Opening window for first image.") before every launch, and disposed itself for one game
+ * but not the other.
+ *
+ * Now the cards scale to their cells, the grid re-flows to a single column on narrow
+ * windows, and closing a game brings this picker back rather than killing the process.
+ */
+public class GameStartupPage {
 
-    public GameStartupPage() {
-        setTitle("Game Startup Page");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1000, 700);
-        setLocationRelativeTo(null);
-        setLayout(new GridLayout(1, 2)); // Divide the frame into two equal parts
-        getContentPane().setBackground(Color.BLACK); // Set the background of the content pane to black
+  private static final String BRICK_BREAKER_IMAGE = "Brickbreacker_picture.png";
+  private static final String DINO_IMAGE = "Dinogame_pic.png";
 
-        // Load images
-        String[] imagePaths = {
-                BRICK_BREAKER_IMAGE,
-                DINO_IMAGE
-        };
+  /** Below this width the two cards stack vertically instead of sitting side by side. */
+  private static final int STACK_BREAKPOINT = 760;
 
-        // Create panels for each image
-        for (String path : imagePaths) {
-            JPanel panel = createGamePanel(path);
-            add(panel);
+  private final JFrame frame = new JFrame("Project Memetent — Choose a game");
+  private final JPanel grid = new JPanel(new GridLayout(1, 2, 0, 0));
+
+  private Runnable onClose;
+
+  public GameStartupPage() {
+    JPanel root = new JPanel(new BorderLayout()) {
+      private static final long serialVersionUID = 1L;
+
+      @Override
+      protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        Graphics2D g2 = (Graphics2D) g.create();
+        Theme.enableQuality(g2);
+        g2.setPaint(new java.awt.GradientPaint(0, 0, Theme.BG_PANEL, 0, getHeight(), Theme.BG_DEEP));
+        g2.fillRect(0, 0, getWidth(), getHeight());
+        g2.dispose();
+      }
+    };
+    root.setOpaque(true);
+    root.setBackground(Theme.BG_DEEP);
+
+    grid.setOpaque(false);
+    grid.setBorder(BorderFactory.createEmptyBorder(4, 16, 24, 16));
+
+    grid.add(new GameCard(BRICK_BREAKER_IMAGE, "Chippi Chappa Brick Breaker",
+                          "Break every brick. Hampter is watching.",
+                          new Runnable() { public void run() { launchBrickBreaker(); } }));
+
+    grid.add(new GameCard(DINO_IMAGE, "T-Rex Run",
+                          "Jump the cacti. Keep the chad happy.",
+                          new Runnable() { public void run() { launchDino(); } }));
+
+    root.add(header(), BorderLayout.NORTH);
+    root.add(grid, BorderLayout.CENTER);
+
+    // Re-flow the grid at the breakpoint. This is the picker's responsive behaviour.
+    root.addComponentListener(new ComponentAdapter() {
+      @Override
+      public void componentResized(ComponentEvent e) {
+        boolean stacked = e.getComponent().getWidth() < STACK_BREAKPOINT;
+        GridLayout layout = (GridLayout) grid.getLayout();
+        int wantRows = stacked ? 2 : 1;
+        if (layout.getRows() != wantRows) {
+          layout.setRows(wantRows);
+          layout.setColumns(stacked ? 1 : 2);
+          grid.revalidate();
         }
+      }
+    });
 
-        setVisible(true);
-    }
+    frame.setContentPane(root);
+    frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+    frame.addWindowListener(new WindowAdapter() {
+      @Override
+      public void windowClosed(WindowEvent e) {
+        if (onClose != null) onClose.run();
+      }
+    });
+    frame.setMinimumSize(new Dimension(420, 480));
+    frame.setSize(1060, 720);
+    frame.setLocationRelativeTo(null);
+  }
 
-    private JPanel createGamePanel(String imagePath) {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(Color.BLACK); // Set the background of the panel to black
+  private JPanel header() {
+    JPanel panel = new JPanel(new BorderLayout());
+    panel.setOpaque(false);
+    panel.setBorder(BorderFactory.createEmptyBorder(26, 30, 6, 30));
 
-        // Load the image
-        ImageIcon imageIcon = new ImageIcon(imagePath);
-        JLabel imageLabel = new JLabel(imageIcon);
-        imageLabel.setHorizontalAlignment(JLabel.CENTER);
-        imageLabel.setVerticalAlignment(JLabel.CENTER);
-        imageLabel.setBackground(Color.BLACK); // Set the background of the label to black
-        imageLabel.setOpaque(true);
+    JLabel title = new JLabel("Choose your game");
+    title.setFont(Theme.font(Font.BOLD, 27f));
+    title.setForeground(Theme.TEXT);
 
-        imageLabel.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                // Handle mouse entered event (e.g., zoom out the image)
-                ImageIcon shrunkIcon = new ImageIcon(imageIcon.getImage().getScaledInstance(900, 900, Image.SCALE_SMOOTH));
-                imageLabel.setIcon(shrunkIcon);
-                panel.setComponentZOrder(imageLabel, 0); // Bring the hovered image to the front
-            }
+    JLabel hint = new JLabel("Close a game window to come back here", SwingConstants.RIGHT);
+    hint.setFont(Theme.font(Font.PLAIN, 13f));
+    hint.setForeground(Theme.TEXT_MUTED);
 
-            @Override
-            public void mouseExited(MouseEvent e) {
-                // Handle mouse exited event (e.g., revert to original size)
-                imageLabel.setIcon(imageIcon);
-            }
+    panel.add(title, BorderLayout.WEST);
+    panel.add(hint, BorderLayout.EAST);
+    return panel;
+  }
 
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                // Show dialog when image is clicked
-                openGameWindow(imagePath);
-            }
-        });
+  public GameStartupPage onClose(Runnable action) {
+    this.onClose = action;
+    return this;
+  }
 
-        panel.add(imageLabel, BorderLayout.CENTER);
-        return panel;
-    }
+  public void show() {
+    frame.setVisible(true);
+  }
 
-    private void openGameWindow(String imagePath) {
-        // Logic to open different window based on the clicked image
-        if (imagePath.equals(BRICK_BREAKER_IMAGE)) {
-            // Open window associated with the first image
-            JOptionPane.showMessageDialog(this, "Opening window for first image.");
-            SwingUtilities.invokeLater(new Runnable() {
-                @Override
-                public void run() {
-                    new BrickBreakerWindow().show();
-                }
-            });
-            dispose(); // Close the current frame
-        } else if (imagePath.equals(DINO_IMAGE)) {
-            // Open window associated with the second image
-            JOptionPane.showMessageDialog(this, "Opening window for second image.");
-            SwingUtilities.invokeLater(new Runnable() {
-                @Override
-                public void run() {
-                    // Create and show the UserInterface
-                    new UserInterface().createAndShowGUI();
-                }
-            });
-        }
-    }
+  /** Hides the picker while a game runs, and restores it when that game closes. */
+  private void launch(Runnable opener) {
+    frame.setVisible(false);
+    opener.run();
+  }
 
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                new GameStartupPage();
-            }
-        });
-    }
+  private void launchBrickBreaker() {
+    launch(new Runnable() {
+      public void run() {
+        new BrickBreakerWindow().onClose(new Runnable() {
+          public void run() { frame.setVisible(true); }
+        }).show();
+      }
+    });
+  }
+
+  private void launchDino() {
+    launch(new Runnable() {
+      public void run() {
+        new UserInterface().onClose(new Runnable() {
+          public void run() { frame.setVisible(true); }
+        }).createAndShowGUI();
+      }
+    });
+  }
+
+  public static void main(String[] args) {
+    SwingUtilities.invokeLater(new Runnable() {
+      @Override
+      public void run() {
+        AppTheme.install();
+        new GameStartupPage().show();
+      }
+    });
+  }
 }
