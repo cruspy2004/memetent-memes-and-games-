@@ -5,6 +5,10 @@ import java.awt.event.MouseEvent;
 
 public class GameStartupPage extends JFrame {
 
+    // Relative to the working directory, so the game runs from wherever it is checked out.
+    private static final String BRICK_BREAKER_IMAGE = "Brickbreacker_picture.png";
+    private static final String DINO_IMAGE = "Dinogame_pic.png";
+
     public GameStartupPage() {
         setTitle("Game Startup Page");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -15,8 +19,8 @@ public class GameStartupPage extends JFrame {
 
         // Load images
         String[] imagePaths = {
-                "C:\\Users\\haadh\\Downloads\\Project_memetent\\Brickbreacker_picture.png",
-                "C:\\Users\\haadh\\Downloads\\Project_memetent\\Dinogame_pic.png"
+                BRICK_BREAKER_IMAGE,
+                DINO_IMAGE
         };
 
         // Create panels for each image
@@ -68,25 +72,17 @@ public class GameStartupPage extends JFrame {
 
     private void openGameWindow(String imagePath) {
         // Logic to open different window based on the clicked image
-        if (imagePath.equals("C:\\Users\\haadh\\Downloads\\Project_memetent\\Brickbreacker_picture.png")) {
+        if (imagePath.equals(BRICK_BREAKER_IMAGE)) {
             // Open window associated with the first image
             JOptionPane.showMessageDialog(this, "Opening window for first image.");
             SwingUtilities.invokeLater(new Runnable() {
                 @Override
                 public void run() {
-                    // Launch the Main class
-                    String hamPath = "hamaster.gif"; // Replace with the actual path to your GIF
-                    GIFPanel hamPanel = new GIFPanel(hamPath);
-
-                    String chPath = "chippi.gif"; // Replace with the actual path to your GIF
-                    GIFPanel chPanel = new GIFPanel(chPath);
-
-                    Main main = new Main(hamPanel, chPanel);
-                    main.showFrame();
+                    new BrickBreakerWindow().show();
                 }
             });
             dispose(); // Close the current frame
-        } else if (imagePath.equals("C:\\Users\\haadh\\Downloads\\Project_memetent\\Dinogame_pic.png")) {
+        } else if (imagePath.equals(DINO_IMAGE)) {
             // Open window associated with the second image
             JOptionPane.showMessageDialog(this, "Opening window for second image.");
             SwingUtilities.invokeLater(new Runnable() {

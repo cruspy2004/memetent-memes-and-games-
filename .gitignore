@@ -1,1 +1,13 @@
 *.class
+
+# Compiler output
+build/
+out/
+dist/
+
+# Packaging output: generated installers and the optimized asset copies that feed them
+package/
+assets-optimized/
+
+# IDE (.idea stays tracked — it is the project's checked-in IDE config)
+*.iml.local
