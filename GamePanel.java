@@ -117,14 +117,18 @@ class GamePanel extends JPanel implements ActionListener {
   private void installKeyBindings() {
     // Both SPACE and UP, and via key bindings rather than a KeyListener — the original
     // relied on keyTyped, which arrow keys never produce, and on the panel holding focus.
-    bind("SPACE");
-    bind("UP");
-    bind("W");
+    bind(java.awt.event.KeyEvent.VK_SPACE);
+    bind(java.awt.event.KeyEvent.VK_UP);
+    bind(java.awt.event.KeyEvent.VK_W);
   }
 
-  private void bind(String stroke) {
-    String key = "dino:" + stroke;
-    getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(stroke), key);
+  /** Key codes rather than descriptor strings; see the note on Gameplay.bind for why. */
+  private void bind(int keyCode) {
+    KeyStroke ks = KeyStroke.getKeyStroke(keyCode, 0, false);
+    if (ks == null) throw new IllegalStateException("unbindable key code " + keyCode);
+
+    String key = "dino:" + keyCode;
+    getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(ks, key);
     getActionMap().put(key, new AbstractAction() {
       @Override public void actionPerformed(ActionEvent e) { primaryAction(); }
     });

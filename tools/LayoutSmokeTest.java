@@ -40,6 +40,8 @@ public class LayoutSmokeTest {
       checkRatioSplit(w, h);
     }
 
+    checkPaddleControls();
+
     System.out.println();
     System.out.println(checks + " checks across " + SIZES.length + " window sizes, "
                        + failures + " failure(s).");
@@ -111,6 +113,73 @@ public class LayoutSmokeTest {
       expect("split " + w + "x" + h + ": no overlap",
              primary.getWidth() > 0 && secondary.getX() == primary.getWidth());
     }
+  }
+
+  /**
+   * Drives the real key bindings and checks the paddle moves both ways, in either order.
+   *
+   * Regression test for a shipped bug: the release bindings were registered as
+   * "RELEASED LEFT", which KeyStroke.getKeyStroke(String) cannot parse (the keyword must be
+   * lowercase). It returns null for anything unparseable and InputMap.put discards a null
+   * without complaint, so the bindings silently did not exist. The movement flag was then
+   * set on key-down and never cleared, and pressing the opposite arrow left both flags true
+   * — which the "both held cancel out" guard reads as "stop", freezing the paddle.
+   *
+   * Asserting on the descriptor strings would not have caught it; only pressing the keys
+   * and watching the paddle does.
+   */
+  private static void checkPaddleControls() {
+    Gameplay field = new Gameplay();
+    try {
+      paintAt(field, 1000, 700);
+
+      press(field, java.awt.event.KeyEvent.VK_LEFT, false);
+      double afterLeft = tickAndReadPaddle(field, 12);
+      expect("controls: LEFT moves the paddle left", afterLeft < 0.5);
+
+      press(field, java.awt.event.KeyEvent.VK_LEFT, true); // release
+      press(field, java.awt.event.KeyEvent.VK_RIGHT, false);
+      double afterRight = tickAndReadPaddle(field, 24);
+      expect("controls: RIGHT still works after LEFT (the shipped bug)", afterRight > afterLeft);
+
+      press(field, java.awt.event.KeyEvent.VK_RIGHT, true);
+      press(field, java.awt.event.KeyEvent.VK_LEFT, false);
+      double backLeft = tickAndReadPaddle(field, 24);
+      expect("controls: LEFT still works after RIGHT", backLeft < afterRight);
+
+      // Both held should cancel out rather than drift.
+      press(field, java.awt.event.KeyEvent.VK_RIGHT, false);
+      double bothA = tickAndReadPaddle(field, 4);
+      double bothB = tickAndReadPaddle(field, 8);
+      expect("controls: both arrows held cancel out", Math.abs(bothA - bothB) < 1e-9);
+    } catch (Exception e) {
+      fail("paddle controls threw " + e);
+    } finally {
+      field.shutdown();
+    }
+  }
+
+  /** Fires the binding registered for a key, exactly as a real key event would. */
+  private static void press(javax.swing.JComponent c, int keyCode, boolean release) {
+    javax.swing.KeyStroke ks = javax.swing.KeyStroke.getKeyStroke(keyCode, 0, release);
+    Object name = c.getInputMap(javax.swing.JComponent.WHEN_IN_FOCUSED_WINDOW).get(ks);
+    if (name == null) {
+      fail("controls: no binding registered for key " + keyCode + (release ? " (release)" : " (press)"));
+      return;
+    }
+    javax.swing.Action action = c.getActionMap().get(name);
+    if (action == null) {
+      fail("controls: no action for " + name);
+      return;
+    }
+    action.actionPerformed(new java.awt.event.ActionEvent(c, 0, String.valueOf(name)));
+  }
+
+  private static double tickAndReadPaddle(Gameplay field, int ticks) throws Exception {
+    for (int i = 0; i < ticks; i++) field.actionPerformed(null);
+    java.lang.reflect.Field f = Gameplay.class.getDeclaredField("paddleX");
+    f.setAccessible(true);
+    return f.getDouble(field);
   }
 
   // ------------------------------------------------------------- harness

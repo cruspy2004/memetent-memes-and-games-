@@ -120,23 +120,40 @@ public class Gameplay extends JPanel implements ActionListener {
    * original's 20px jump per key event.
    */
   private void installKeyBindings() {
-    bind("LEFT", true, new Runnable() { public void run() { movingLeft = true; } });
-    bind("RELEASED LEFT", false, new Runnable() { public void run() { movingLeft = false; } });
-    bind("RIGHT", true, new Runnable() { public void run() { movingRight = true; } });
-    bind("RELEASED RIGHT", false, new Runnable() { public void run() { movingRight = false; } });
+    Runnable leftDown = new Runnable() { public void run() { movingLeft = true; } };
+    Runnable leftUp = new Runnable() { public void run() { movingLeft = false; } };
+    Runnable rightDown = new Runnable() { public void run() { movingRight = true; } };
+    Runnable rightUp = new Runnable() { public void run() { movingRight = false; } };
+    Runnable serve = new Runnable() { public void run() { launchOrRestart(); } };
 
-    bind("A", true, new Runnable() { public void run() { movingLeft = true; } });
-    bind("RELEASED A", false, new Runnable() { public void run() { movingLeft = false; } });
-    bind("D", true, new Runnable() { public void run() { movingRight = true; } });
-    bind("RELEASED D", false, new Runnable() { public void run() { movingRight = false; } });
+    for (int code : new int[] { KeyEvent.VK_LEFT, KeyEvent.VK_A }) {
+      bind(code, false, leftDown);
+      bind(code, true, leftUp);
+    }
+    for (int code : new int[] { KeyEvent.VK_RIGHT, KeyEvent.VK_D }) {
+      bind(code, false, rightDown);
+      bind(code, true, rightUp);
+    }
 
-    bind("ENTER", true, new Runnable() { public void run() { launchOrRestart(); } });
-    bind("SPACE", true, new Runnable() { public void run() { launchOrRestart(); } });
+    bind(KeyEvent.VK_ENTER, false, serve);
+    bind(KeyEvent.VK_SPACE, false, serve);
   }
 
-  private void bind(String stroke, boolean unusedPressed, final Runnable action) {
-    KeyStroke ks = KeyStroke.getKeyStroke(stroke);
-    String key = "gameplay:" + stroke;
+  /**
+   * Binds one key event.
+   *
+   * Built from a key code rather than a descriptor string on purpose. The string form of
+   * {@code KeyStroke.getKeyStroke} needs the keyword in lowercase — "released LEFT" — and
+   * returns *null* for anything it cannot parse, which {@code InputMap.put} then discards
+   * without complaint. Written as "RELEASED LEFT" it silently registered nothing, so the
+   * paddle's movement flag was set on key-down and never cleared: pressing the other arrow
+   * left both flags true and the paddle stopped dead.
+   */
+  private void bind(int keyCode, boolean onRelease, final Runnable action) {
+    KeyStroke ks = KeyStroke.getKeyStroke(keyCode, 0, onRelease);
+    if (ks == null) throw new IllegalStateException("unbindable key code " + keyCode);
+
+    String key = "gameplay:" + keyCode + (onRelease ? ":up" : ":down");
     getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(ks, key);
     getActionMap().put(key, new AbstractAction() {
       @Override public void actionPerformed(ActionEvent e) { action.run(); }
