@@ -20,6 +20,7 @@ import javax.swing.Timer;
 import components.Dino;
 import components.Ground;
 import components.Obstacles;
+import components.Sky;
 import jaco.mp3.player.MP3Player;
 import utility.Assets;
 
@@ -44,6 +45,7 @@ class GamePanel extends JPanel implements ActionListener {
   private static final int TICK_MS = 16; // ~60fps
 
   private final Ground ground;
+  private final Sky sky;
   private final Dino dino;
   private final Obstacles obstacles;
   private final Timer timer;
@@ -72,7 +74,8 @@ class GamePanel extends JPanel implements ActionListener {
     setMinimumSize(new Dimension(480, 320));
     setPreferredSize(new Dimension(900, 620));
 
-    ground = new Ground(900, 620);
+    ground = new Ground(900, 620); // constructed first: it sets Ground.GROUND_Y and SCALE
+    sky = new Sky(900, 620);
     dino = new Dino();
     obstacles = new Obstacles(900);
 
@@ -95,7 +98,8 @@ class GamePanel extends JPanel implements ActionListener {
     int w = getWidth();
     int h = getHeight();
     if (w <= 0 || h <= 0) return;
-    ground.resize(w, h);   // sets Ground.GROUND_Y, which the other two read
+    ground.resize(w, h);   // sets Ground.GROUND_Y and SCALE, which the others read
+    sky.resize(w, h);
     dino.resize(w, h);
     obstacles.resize(w);
   }
@@ -164,6 +168,7 @@ class GamePanel extends JPanel implements ActionListener {
 
     if (state == State.RUNNING) {
       ground.update(dt);
+      sky.update(dt);
       obstacles.update(dt);
       dino.update(dt);
 
@@ -209,6 +214,7 @@ class GamePanel extends JPanel implements ActionListener {
     g2.setPaint(new java.awt.GradientPaint(0, 0, new Color(32, 38, 54), 0, h, new Color(18, 21, 30)));
     g2.fillRect(0, 0, w, h);
 
+    sky.create(g2); // behind everything
     ground.create(g2);
     obstacles.create(g2);
     dino.create(g2, w);

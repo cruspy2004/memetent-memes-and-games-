@@ -69,7 +69,8 @@ public class Obstacles {
   }
 
   public void update(double dt) {
-    double shift = SPEED * dt;
+    // Scales with the scene, matching Ground's scroll so cacti track the ground texture.
+    double shift = SPEED * Ground.SCALE * dt;
     for (Obstacle ob : obList) {
       ob.x -= shift;
     }
@@ -82,7 +83,7 @@ public class Obstacles {
       furthest = Math.max(furthest, ob.x);
     }
     for (Obstacle ob : obList) {
-      if (ob.x < -ob.image.getWidth()) {
+      if (ob.x < -ob.image.getWidth() * Ground.SCALE) {
         ob.x = furthest + spacing + random.nextInt(140);
         ob.image = imageList.get(random.nextInt(imageList.size()));
       }
@@ -91,12 +92,17 @@ public class Obstacles {
 
   public void create(Graphics g) {
     for (Obstacle ob : obList) {
-      g.drawImage(ob.image, (int) Math.round(ob.x), groundedY(ob), null);
+      Rectangle box = boundsOf(ob);
+      g.drawImage(ob.image, box.x, box.y, box.width, box.height, null);
     }
   }
 
-  private int groundedY(Obstacle ob) {
-    return Ground.GROUND_Y - ob.image.getHeight() + 5;
+  /** Position and size at the scene's current scale, derived from the live ground line. */
+  private Rectangle boundsOf(Obstacle ob) {
+    int w = Math.max(1, (int) Math.round(ob.image.getWidth() * Ground.SCALE));
+    int h = Math.max(1, (int) Math.round(ob.image.getHeight() * Ground.SCALE));
+    int y = Ground.GROUND_Y - h + (int) Math.round(5 * Ground.SCALE);
+    return new Rectangle((int) Math.round(ob.x), y, w, h);
   }
 
   /**
@@ -105,9 +111,7 @@ public class Obstacles {
    */
   public boolean hasCollided(Rectangle dino) {
     for (Obstacle ob : obList) {
-      Rectangle box = new Rectangle((int) Math.round(ob.x), groundedY(ob),
-                                    ob.image.getWidth(), ob.image.getHeight());
-      if (dino.intersects(box)) return true;
+      if (dino.intersects(boundsOf(ob))) return true;
     }
     return false;
   }

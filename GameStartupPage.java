@@ -36,8 +36,12 @@ public class GameStartupPage {
   /** Below this width the two cards stack vertically instead of sitting side by side. */
   private static final int STACK_BREAKPOINT = 760;
 
+  /** Narrower than this and the header hint is dropped; the title alone gets the width. */
+  private static final int HINT_BREAKPOINT = 780;
+
   private final JFrame frame = new JFrame("Project Memetent — Choose a game");
   private final JPanel grid = new JPanel(new GridLayout(1, 2, 0, 0));
+  private final JLabel hint = new JLabel("Close a game to come back here", SwingConstants.RIGHT);
 
   private Runnable onClose;
 
@@ -76,7 +80,11 @@ public class GameStartupPage {
     root.addComponentListener(new ComponentAdapter() {
       @Override
       public void componentResized(ComponentEvent e) {
-        boolean stacked = e.getComponent().getWidth() < STACK_BREAKPOINT;
+        int width = e.getComponent().getWidth();
+
+        hint.setVisible(width >= HINT_BREAKPOINT);
+
+        boolean stacked = width < STACK_BREAKPOINT;
         GridLayout layout = (GridLayout) grid.getLayout();
         int wantRows = stacked ? 2 : 1;
         if (layout.getRows() != wantRows) {
@@ -103,18 +111,22 @@ public class GameStartupPage {
   private JPanel header() {
     JPanel panel = new JPanel(new BorderLayout());
     panel.setOpaque(false);
-    panel.setBorder(BorderFactory.createEmptyBorder(26, 30, 6, 30));
+    // Extra right inset: a right-aligned JLabel's reported preferred width can fall a pixel
+    // or two short of what the glyphs actually paint, which clipped the last character.
+    panel.setBorder(BorderFactory.createEmptyBorder(26, 30, 6, 46));
 
     JLabel title = new JLabel("Choose your game");
     title.setFont(Theme.font(Font.BOLD, 27f));
     title.setForeground(Theme.TEXT);
 
-    JLabel hint = new JLabel("Close a game window to come back here", SwingConstants.RIGHT);
+    // BorderLayout gives WEST and EAST their preferred widths and squeezes whatever is left,
+    // so a long hint next to a long title clipped its own last character. CENTER absorbs the
+    // remainder instead, and below HINT_BREAKPOINT the hint is hidden outright.
     hint.setFont(Theme.font(Font.PLAIN, 13f));
     hint.setForeground(Theme.TEXT_MUTED);
 
     panel.add(title, BorderLayout.WEST);
-    panel.add(hint, BorderLayout.EAST);
+    panel.add(hint, BorderLayout.CENTER);
     return panel;
   }
 

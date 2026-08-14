@@ -66,10 +66,19 @@ public class Dino {
    * Recomputes ground-relative geometry. Called on every panel resize, and the reason the
    * dino now stays planted on the ground line at any window size.
    */
+  /** Sprite size at the scene's current scale. */
+  private int spriteW() {
+    return Math.max(1, (int) Math.round(standing.getWidth() * Ground.SCALE));
+  }
+
+  private int spriteH() {
+    return Math.max(1, (int) Math.round(standing.getHeight() * Ground.SCALE));
+  }
+
   public void resize(int panelWidth, int panelHeight) {
     boolean onGround = state != JUMPING;
 
-    restingY = Ground.GROUND_Y - standing.getHeight() + 5;
+    restingY = Ground.GROUND_Y - spriteH() + (int) Math.round(5 * Ground.SCALE);
 
     // Solve the arc: apex height h in time t gives v = 2h/t and g = 2h/t^2.
     double apex = Math.max(60.0, panelHeight * JUMP_HEIGHT_FRACTION);
@@ -127,15 +136,15 @@ public class Dino {
         break;
     }
 
-    g.drawImage(sprite, drawX, drawY, null);
+    g.drawImage(sprite, drawX, drawY, spriteW(), spriteH(), null);
   }
 
   public Rectangle getBounds(int panelWidth) {
     // Inset slightly: the sprite has transparent margins, and colliding on the bounding box
-    // made near-misses register as hits.
-    int inset = 4;
+    // made near-misses register as hits. The inset scales with the sprite.
+    int inset = (int) Math.round(4 * Ground.SCALE);
     return new Rectangle(x(panelWidth) + inset, (int) Math.round(y) + inset,
-                         standing.getWidth() - inset * 2, standing.getHeight() - inset * 2);
+                         spriteW() - inset * 2, spriteH() - inset * 2);
   }
 
   public void startRunning() {

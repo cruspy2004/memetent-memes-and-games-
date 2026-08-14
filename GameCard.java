@@ -115,8 +115,13 @@ class GameCard extends JPanel {
 
     // Artwork, clipped to the card so the hover zoom cannot spill outside it — the failure
     // the old 900x900 swap had.
+    // Size the text band to the type it holds. It used to be 20% of the card height, which
+    // on a tall card left a band far deeper than the two lines inside it, and the card read
+    // as bottom-heavy with a strip of dead space under the blurb.
     java.awt.Shape oldClip = g2.getClip();
-    int textBand = (int) Math.max(72, cardH * 0.20);
+    int titleH = g2.getFontMetrics(Theme.scaledFont(Font.BOLD, 21f, cardW * 2)).getHeight();
+    int blurbH = g2.getFontMetrics(Theme.scaledFont(Font.PLAIN, 13f, cardW * 2)).getHeight();
+    int textBand = titleH + blurbH + 34;
     int artBoxH = cardH - textBand;
     g2.clip(new RoundRectangle2D.Float(cardX, cardY, cardW, artBoxH, arc, arc));
 

@@ -93,7 +93,7 @@ New-Item -ItemType Directory "$staging/images" | Out-Null
 $assets = @(
   'background.png', 'Brickbreacker_picture.png', 'Dinogame_pic.png',
   'hamaster.mp3', 'chippi.mp3', 'gigachad.mp3',
-  'images/Ground.png',
+  'images/Ground.png', 'images/Sun.png',
   'images/Dino-stand.png', 'images/Dino-left-up.png',
   'images/Dino-right-up.png', 'images/Dino-big-eyes.png',
   'images/Cactus-1.png', 'images/Cactus-2.png', 'images/Cactus-5.png'
