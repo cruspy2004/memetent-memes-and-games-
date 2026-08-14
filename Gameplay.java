@@ -22,6 +22,8 @@ import javax.swing.JPanel;
 import javax.swing.KeyStroke;
 import javax.swing.Timer;
 
+import utility.Assets;
+
 /**
  * Brick breaker play field.
  *

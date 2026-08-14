@@ -7,6 +7,7 @@ import java.awt.Graphics2D;
 import java.awt.GridLayout;
 
 import javax.swing.BorderFactory;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
@@ -54,8 +55,8 @@ class MemeRail extends JPanel {
     setPreferredSize(new Dimension(320, 480));
   }
 
-  /** Registers a GIF under a key, to be shown later with {@link #show}. */
-  MemeRail addCard(String key, GIFPanel panel) {
+  /** Registers a card under a key, to be shown later with {@link #show}. */
+  MemeRail addCard(String key, JComponent panel) {
     panel.setOpaque(false);
     deck.add(panel, key);
     if (current == null) current = key;

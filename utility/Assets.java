@@ -1,7 +1,11 @@
-import java.awt.Image;
+package utility;
+
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.imageio.ImageIO;
@@ -11,17 +15,20 @@ import javax.swing.ImageIcon;
  * Finds the game's media files.
  *
  * Everything used to be loaded straight off a bare relative path — {@code new
- * ImageIcon("hamaster.gif")}, {@code new File("chippi.mp3")} — which only resolves when
- * the JVM's working directory happens to be the project root. That works from an IDE and
- * breaks the moment the app is launched by double-click or installed somewhere, which is
- * exactly what shipping it to an audience requires.
+ * ImageIcon("hamaster.gif")}, {@code new File("chippi.mp3")} — which only resolves when the
+ * JVM's working directory happens to be the project root. That works from an IDE and breaks
+ * the moment the app is launched by double-click or installed somewhere, which is exactly
+ * what shipping it to an audience requires.
  *
  * So resolution walks a list of candidate roots and takes the first hit. Loaded images are
  * cached, because the menu previously re-decoded a 600px PNG on every mouse-enter.
+ *
+ * Lives in {@code utility} rather than the default package so the {@code components}
+ * classes can import it — Java has no syntax for importing from the default package.
  */
-final class Assets {
+public final class Assets {
 
-  /** Set by the packaged launcher (see build.ps1) to the install directory. */
+  /** Set by the packaged launcher to the install directory. See build.ps1. */
   private static final String APP_DIR_PROPERTY = "memetent.assets";
 
   private static final File[] ROOTS = buildRoots();
@@ -33,7 +40,7 @@ final class Assets {
   }
 
   private static File[] buildRoots() {
-    java.util.List<File> roots = new java.util.ArrayList<File>();
+    List<File> roots = new ArrayList<File>();
 
     String configured = System.getProperty(APP_DIR_PROPERTY);
     if (configured != null && !configured.isEmpty()) roots.add(new File(configured));
@@ -41,14 +48,14 @@ final class Assets {
     // Where the JVM was started from.
     roots.add(new File("."));
 
-    // Beside the jar/classes we were loaded from, and one level up from it, which covers
-    // both "app/game.jar + assets" and "app/lib/game.jar + app/assets" layouts.
+    // Beside the jar/classes we were loaded from, and one and two levels up. That covers
+    // "app/game.jar + assets" as well as jpackage's "app/lib/game.jar + app/assets".
     try {
       File self = new File(Assets.class.getProtectionDomain().getCodeSource().getLocation().toURI());
       File dir = self.isDirectory() ? self : self.getParentFile();
-      if (dir != null) {
+      for (int i = 0; i < 3 && dir != null; i++) {
         roots.add(dir);
-        if (dir.getParentFile() != null) roots.add(dir.getParentFile());
+        dir = dir.getParentFile();
       }
     } catch (Exception ignored) {
       // Sealed or unusual class loader; the other roots still apply.
@@ -58,11 +65,11 @@ final class Assets {
   }
 
   /**
-   * Resolves a project-relative path such as {@code "images/Ground.png"}. Returns a File
-   * pointing at the first root that actually contains it; if none do, returns the
-   * working-directory candidate so callers report a sensible path in their error.
+   * Resolves a project-relative path such as {@code "images/Ground.png"}. Returns a File at
+   * the first root that actually contains it; if none do, returns the working-directory
+   * candidate so callers report a sensible path in their error.
    */
-  static File resolve(String relativePath) {
+  public static File resolve(String relativePath) {
     for (File root : ROOTS) {
       File candidate = new File(root, relativePath);
       if (candidate.isFile()) return candidate;
@@ -70,16 +77,16 @@ final class Assets {
     return new File(relativePath);
   }
 
-  static boolean exists(String relativePath) {
+  public static boolean exists(String relativePath) {
     return resolve(relativePath).isFile();
   }
 
   /**
    * Loads an animated GIF or still image as an ImageIcon. Cached — an ImageIcon holds a
-   * decoded, animating Image, and building a second one for the same file would start a
-   * second animation thread for no reason.
+   * decoded, animating Image, and a second one for the same file would drive a second
+   * animation for no reason.
    */
-  static synchronized ImageIcon icon(String relativePath) {
+  public static synchronized ImageIcon icon(String relativePath) {
     ImageIcon cached = ICON_CACHE.get(relativePath);
     if (cached != null) return cached;
 
@@ -88,7 +95,7 @@ final class Assets {
     if (file.isFile()) {
       icon = new ImageIcon(file.getAbsolutePath());
     } else {
-      System.err.println("Assets: missing " + relativePath + " (looked in " + describeRoots() + ")");
+      warnMissing(relativePath);
       icon = new ImageIcon(placeholder(320, 240));
     }
     ICON_CACHE.put(relativePath, icon);
@@ -96,7 +103,7 @@ final class Assets {
   }
 
   /** Loads a still image for direct drawing. Cached for the same reason as {@link #icon}. */
-  static synchronized BufferedImage image(String relativePath) {
+  public static synchronized BufferedImage image(String relativePath) {
     BufferedImage cached = IMAGE_CACHE.get(relativePath);
     if (cached != null) return cached;
 
@@ -109,7 +116,7 @@ final class Assets {
         System.err.println("Assets: could not decode " + relativePath + ": " + e.getMessage());
       }
     } else {
-      System.err.println("Assets: missing " + relativePath + " (looked in " + describeRoots() + ")");
+      warnMissing(relativePath);
     }
 
     if (img == null) img = placeholder(48, 48);
@@ -117,15 +124,19 @@ final class Assets {
     return img;
   }
 
+  /** Convenience for the audio layer, which wants a File rather than an Image. */
+  public static File audio(String relativePath) {
+    return resolve(relativePath);
+  }
+
   /**
-   * A visible magenta box standing in for a file we couldn't find. Better than a
-   * NullPointerException deep inside a paint loop, which is how the old Resource class
-   * failed: {@code ImageIO.read(getClass().getResource(...))} returned null and the crash
-   * surfaced somewhere unrelated.
+   * A visible magenta box standing in for a file we could not find. Better than the old
+   * failure mode: {@code ImageIO.read(getClass().getResource(...))} returned null and the
+   * NullPointerException surfaced later, deep inside a paint loop.
    */
   private static BufferedImage placeholder(int w, int h) {
     BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-    java.awt.Graphics2D g = img.createGraphics();
+    Graphics2D g = img.createGraphics();
     g.setColor(new java.awt.Color(220, 40, 160));
     g.fillRect(0, 0, w, h);
     g.setColor(java.awt.Color.WHITE);
@@ -134,21 +145,12 @@ final class Assets {
     return img;
   }
 
-  private static String describeRoots() {
+  private static void warnMissing(String relativePath) {
     StringBuilder sb = new StringBuilder();
     for (File root : ROOTS) {
       if (sb.length() > 0) sb.append(", ");
       sb.append(root.getAbsolutePath());
     }
-    return sb.toString();
-  }
-
-  /** Convenience for the audio layer, which wants a File rather than an Image. */
-  static File audio(String relativePath) {
-    return resolve(relativePath);
-  }
-
-  static Image scaled(Image src, int w, int h) {
-    return src.getScaledInstance(Math.max(1, w), Math.max(1, h), Image.SCALE_SMOOTH);
+    System.err.println("Assets: missing " + relativePath + " (looked in " + sb + ")");
   }
 }

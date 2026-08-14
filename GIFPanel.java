@@ -7,6 +7,8 @@ import java.awt.Rectangle;
 import javax.swing.ImageIcon;
 import javax.swing.JPanel;
 
+import utility.Assets;
+
 /**
  * Shows an animated GIF scaled to the panel rather than at its native pixel size.
  *

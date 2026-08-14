@@ -1,126 +1,114 @@
 package components;
 
-import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.List;
+import java.util.Random;
 
-import utility.Resource;
+import utility.Assets;
 
+/**
+ * The cactus field.
+ *
+ * Each obstacle used to store its {@code y} at construction, computed from whatever
+ * {@code Ground.GROUND_Y} was at the time. Once the ground moved — which it does on every
+ * resize — the cacti stayed at the old height, floating above or sunk below the line. The Y
+ * is now derived from the ground at draw and collide time, so they follow it for free.
+ *
+ * Spacing and speed are also derived from the panel width rather than the fixed
+ * {@code obstacleInterval = 200} / {@code movementSpeed = 11} pixel constants, so the game
+ * plays the same on a laptop and a projector.
+ */
 public class Obstacles {
-  private class Obstacle {
+
+  private static class Obstacle {
     BufferedImage image;
-    int x;
-    int y;
-
-    Rectangle getObstacle() {
-      Rectangle obstacle = new Rectangle();
-      obstacle.x = x;
-      obstacle.y = y;
-      obstacle.width = image.getWidth();
-      obstacle.height = image.getHeight();
-
-      return obstacle;
-    }
+    double x;
   }
-  
-  private int firstX;
-  private int obstacleInterval;
-  private int movementSpeed;
-  
-  private ArrayList<BufferedImage> imageList;
-  private ArrayList<Obstacle> obList;
 
-  private Obstacle blockedAt;
-  
-  public Obstacles(int firstPos) {
-    obList = new ArrayList<Obstacle>();
-    imageList = new ArrayList<BufferedImage>();
-    
-    firstX = firstPos;
-    obstacleInterval = 200;
-    movementSpeed = 11;
-    
-    imageList.add(new Resource().getResourceImage("../images/Cactus-1.png"));
-    imageList.add(new Resource().getResourceImage("../images/Cactus-2.png"));
-    imageList.add(new Resource().getResourceImage("../images/Cactus-2.png"));
-    imageList.add(new Resource().getResourceImage("../images/Cactus-1.png"));
-    // imageList.add(new Resource().getResourceImage("../images/Cactus-3.png"));
-    // imageList.add(new Resource().getResourceImage("../images/Cactus-4.png"));
-    imageList.add(new Resource().getResourceImage("../images/Cactus-5.png"));
-    
-    int x = firstX;
-    
-    for(BufferedImage bi : imageList) {
-      
+  /** Scroll speed in px/s. Matches the old 11px-per-20ms frame. */
+  private static final double SPEED = 550.0;
+
+  private final List<BufferedImage> imageList = new ArrayList<BufferedImage>();
+  private final List<Obstacle> obList = new ArrayList<Obstacle>();
+  private final Random random = new Random();
+
+  private int panelWidth;
+  private double spacing;
+
+  public Obstacles(int panelWidth) {
+    imageList.add(Assets.image("images/Cactus-1.png"));
+    imageList.add(Assets.image("images/Cactus-2.png"));
+    imageList.add(Assets.image("images/Cactus-5.png"));
+    imageList.add(Assets.image("images/Cactus-1.png"));
+    imageList.add(Assets.image("images/Cactus-2.png"));
+
+    resize(panelWidth);
+    reset();
+  }
+
+  /** Spacing scales with the window so the run stays equally hard at any width. */
+  public void resize(int panelWidth) {
+    this.panelWidth = Math.max(1, panelWidth);
+    this.spacing = Math.max(260, panelWidth * 0.42);
+  }
+
+  /** Rebuilds the field off-screen to the right. */
+  public void reset() {
+    obList.clear();
+    double x = panelWidth * 1.2;
+    for (BufferedImage bi : imageList) {
       Obstacle ob = new Obstacle();
-      
       ob.image = bi;
       ob.x = x;
-      ob.y = Ground.GROUND_Y - bi.getHeight() + 5;
-      x += obstacleInterval;
-      
       obList.add(ob);
+      x += spacing + random.nextInt(120);
     }
   }
-  
-  public void update() {
-    Iterator<Obstacle> looper = obList.iterator();
-    
-    Obstacle firstOb = looper.next();
-    firstOb.x -= movementSpeed;
-    
-    while(looper.hasNext()) {
-      Obstacle ob = looper.next();
-      ob.x -= movementSpeed;
+
+  public void update(double dt) {
+    double shift = SPEED * dt;
+    for (Obstacle ob : obList) {
+      ob.x -= shift;
     }
-    
-    Obstacle lastOb = obList.get(obList.size() - 1);
-    
-    if(firstOb.x < -firstOb.image.getWidth()) {
-      obList.remove(firstOb);
-      firstOb.x = obList.get(obList.size() - 1).x + obstacleInterval;
-      obList.add(firstOb);
+
+    // Recycle anything that has left the screen to the far right of the pack. The old
+    // version mutated the list while an iterator was open over it, which is only safe
+    // because it broke out immediately.
+    double furthest = 0;
+    for (Obstacle ob : obList) {
+      furthest = Math.max(furthest, ob.x);
+    }
+    for (Obstacle ob : obList) {
+      if (ob.x < -ob.image.getWidth()) {
+        ob.x = furthest + spacing + random.nextInt(140);
+        ob.image = imageList.get(random.nextInt(imageList.size()));
+      }
     }
   }
-  
+
   public void create(Graphics g) {
-    for(Obstacle ob : obList) {
-      g.setColor(Color.black);
-      // g.drawRect(ob.getObstacle().x, ob.getObstacle().y, ob.getObstacle().width, ob.getObstacle().height);
-      g.drawImage(ob.image, ob.x, ob.y, null);
+    for (Obstacle ob : obList) {
+      g.drawImage(ob.image, (int) Math.round(ob.x), groundedY(ob), null);
     }
   }
-  
-  public boolean hasCollided() {
-    for(Obstacle ob : obList) {
-      if(Dino.getDino().intersects(ob.getObstacle())) {
-        System.out.println("Dino = " + Dino.getDino() + "\nObstacle = " + ob.getObstacle() + "\n\n");
-        blockedAt = ob;
-        return true;
-      }   
+
+  private int groundedY(Obstacle ob) {
+    return Ground.GROUND_Y - ob.image.getHeight() + 5;
+  }
+
+  /**
+   * Takes the dino's bounds rather than reaching for {@code Dino.getDino()} statically, so
+   * the two classes are no longer coupled through static mutable state.
+   */
+  public boolean hasCollided(Rectangle dino) {
+    for (Obstacle ob : obList) {
+      Rectangle box = new Rectangle((int) Math.round(ob.x), groundedY(ob),
+                                    ob.image.getWidth(), ob.image.getHeight());
+      if (dino.intersects(box)) return true;
     }
     return false;
   }
-
-  public void resume() {
-    // this.obList = null;
-    int x = firstX/2;   
-    obList = new ArrayList<Obstacle>();
-    
-    for(BufferedImage bi : imageList) {
-      
-      Obstacle ob = new Obstacle();
-      
-      ob.image = bi;
-      ob.x = x;
-      ob.y = Ground.GROUND_Y - bi.getHeight() + 5;
-      x += obstacleInterval;
-      
-      obList.add(ob);
-    }
-  }
-  
 }
