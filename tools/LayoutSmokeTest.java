@@ -6,6 +6,8 @@ import java.awt.image.BufferedImage;
 
 import javax.swing.JPanel;
 
+import components.Dino;
+
 /**
  * Headless check that every screen lays out and paints cleanly across a wide range of
  * window sizes.
@@ -41,6 +43,7 @@ public class LayoutSmokeTest {
     }
 
     checkPaddleControls();
+    checkDinoGameplay();
 
     System.out.println();
     System.out.println(checks + " checks across " + SIZES.length + " window sizes, "
@@ -157,6 +160,100 @@ public class LayoutSmokeTest {
     } finally {
       field.shutdown();
     }
+  }
+
+  /**
+   * Plays a round of T-Rex run: start, jump, land, collide, restart.
+   *
+   * Covers the parts of the dino rewrite the layout checks do not touch — the jump was
+   * replaced with a gravity arc, and collision boxes are now derived from Ground.SCALE. Both
+   * are easy to get wrong in a way that still paints correctly.
+   *
+   * Movement is time-based, so this ticks with real sleeps rather than in a tight loop:
+   * spinning the timer without elapsed time yields a dt near zero and nothing moves.
+   */
+  private static void checkDinoGameplay() {
+    GamePanel panel = new GamePanel();
+    try {
+      paintAt(panel, 1200, 700);
+      expect("dino run: starts in READY", "READY".equals(stateOf(panel)));
+
+      press(panel, java.awt.event.KeyEvent.VK_SPACE, false);
+      expect("dino run: SPACE starts the run", "RUNNING".equals(stateOf(panel)));
+
+      Dino dino = dinoOf(panel);
+      tick(panel, 6);
+      int groundY = dino.getBounds(1200).y;
+
+      // Jump: the dino must leave the ground and come back to it.
+      press(panel, java.awt.event.KeyEvent.VK_SPACE, false);
+      tick(panel, 6);
+      int airborneY = dino.getBounds(1200).y;
+      expect("dino run: jump lifts it off the ground", airborneY < groundY);
+
+      // A second press mid-air must be ignored. The old jump() reset the dino to the ground
+      // on every call, so pressing again in flight teleported it down and restarted the hop.
+      //
+      // Checking only "still above the ground" is not enough to catch that: the teleport is
+      // immediately followed by an upward step, so the dino is a few pixels up again by the
+      // next frame and a naive check passes. It has to assert the dino is still *clearly*
+      // airborne, near where it already was.
+      int clearance = (groundY - airborneY) / 2;
+      press(panel, java.awt.event.KeyEvent.VK_SPACE, false);
+      tick(panel, 1);
+      expect("dino run: mid-air press does not restart the hop",
+             dino.getBounds(1200).y < groundY - clearance);
+
+      // Let the arc complete.
+      int settle = 0;
+      while (dino.getBounds(1200).y < groundY && settle < 120) {
+        tick(panel, 1);
+        settle++;
+      }
+      expect("dino run: it lands again", dino.getBounds(1200).y >= groundY);
+
+      // Run on without jumping until a cactus catches it. This is the collision path, and
+      // it only works if the scaled obstacle boxes line up with the scaled dino box.
+      int guard = 0;
+      while (!"DEAD".equals(stateOf(panel)) && guard < 400) {
+        tick(panel, 1);
+        guard++;
+      }
+      expect("dino run: a cactus ends the run", "DEAD".equals(stateOf(panel)));
+
+      // And restart works.
+      press(panel, java.awt.event.KeyEvent.VK_SPACE, false);
+      expect("dino run: SPACE restarts after death", "RUNNING".equals(stateOf(panel)));
+    } catch (Exception e) {
+      fail("dino gameplay threw " + e);
+    } finally {
+      panel.shutdown();
+    }
+  }
+
+  /** One frame of simulation, with enough real time elapsed for dt to be meaningful. */
+  private static void tick(GamePanel panel, int frames) {
+    for (int i = 0; i < frames; i++) {
+      try {
+        Thread.sleep(20);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        return;
+      }
+      panel.actionPerformed(null);
+    }
+  }
+
+  private static String stateOf(GamePanel panel) throws Exception {
+    java.lang.reflect.Field f = GamePanel.class.getDeclaredField("state");
+    f.setAccessible(true);
+    return String.valueOf(f.get(panel));
+  }
+
+  private static Dino dinoOf(GamePanel panel) throws Exception {
+    java.lang.reflect.Field f = GamePanel.class.getDeclaredField("dino");
+    f.setAccessible(true);
+    return (Dino) f.get(panel);
   }
 
   /** Fires the binding registered for a key, exactly as a real key event would. */
